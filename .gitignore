@@ -1,0 +1,26 @@
+# Environment
+.env
+config.json
+
+# Sessions (contain your login cookies — never commit these)
+sessions/
+*.json
+!config.example.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Data (generated at runtime)
+data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Resume (personal file)
+assets/*.pdf

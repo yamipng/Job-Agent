@@ -1,0 +1,28 @@
+{
+  "anthropic_api_key": "YOUR_ANTHROPIC_API_KEY_HERE",
+  "default_keywords": "IT Support internship web developer",
+  "default_location": "Remote",
+  "max_jobs_per_platform": 10,
+  "resume_path": "assets/Jules_Sejour_Resume.pdf",
+
+  "user_profile": {
+    "first_name": "Jules",
+    "last_name": "Sejour",
+    "email": "your.email@example.com",
+    "phone": "555-000-0000",
+    "linkedin": "https://linkedin.com/in/yourprofile"
+  },
+
+  "email_notifications": {
+    "enabled": false,
+    "sender": "your.gmail@gmail.com",
+    "app_password": "YOUR_GMAIL_APP_PASSWORD",
+    "recipient": "your.email@example.com"
+  },
+
+  "platforms": {
+    "linkedin": true,
+    "indeed": true,
+    "handshake": true
+  }
+}

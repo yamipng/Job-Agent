@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Agent — Jules Sejour</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c14;
+    --surface: #0d1424;
+    --surface2: #111c30;
+    --border: #1e3050;
+    --accent: #38bdf8;
+    --accent2: #818cf8;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,12,20,0.8);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--sans);
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--accent); }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Main layout */
+  main {
+    padding: 32px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .stat-card.total::before { background: var(--accent); }
+  .stat-card.applied::before { background: var(--green); }
+  .stat-card.pending::before { background: var(--amber); }
+  .stat-card.interview::before { background: var(--accent2); }
+  .stat-card.rejected::before { background: var(--red); }
+
+  .stat-card:hover { border-color: var(--accent); }
+
+  .stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .stat-num {
+    font-family: var(--sans);
+    font-weight: 800;
+    font-size: 36px;
+    line-height: 1;
+  }
+
+  .stat-card.total .stat-num { color: var(--accent); }
+  .stat-card.applied .stat-num { color: var(--green); }
+  .stat-card.pending .stat-num { color: var(--amber); }
+  .stat-card.interview .stat-num { color: var(--accent2); }
+  .stat-card.rejected .stat-num { color: var(--red); }
+
+  .stat-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* Controls bar */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .search-box {
+    flex: 1;
+    min-width: 240px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+
+  .search-box input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    width: 100%;
+  }
+
+  .search-box input::placeholder { color: var(--muted); }
+
+  .filter-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .filter-btn:hover, .filter-btn.active {
+    background: var(--surface2);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .run-btn {
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    color: #080c14;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  .run-btn:hover { background: #7dd3fc; transform: translateY(-1px); }
+  .run-btn:active { transform: translateY(0); }
+  .run-btn.running { background: var(--amber); color: #080c14; }
+
+  /* Kanban board */
+  .board-section h2 {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  .kanban {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .column {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    min-height: 400px;
+  }
+
+  .col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .col-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .col-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .col-count {
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--surface2);
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  /* Job cards */
+  .job-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    animation: slideIn 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .job-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 24px rgba(56,189,248,0.1);
+  }
+
+  .job-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .job-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+  }
+
+  .platform-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .platform-badge.linkedin { background: rgba(56,189,248,0.15); color: var(--accent); }
+  .platform-badge.indeed { background: rgba(251,191,36,0.15); color: var(--amber); }
+  .platform-badge.handshake { background: rgba(129,140,248,0.15); color: var(--accent2); }
+
+  .job-company {
+    font-size: 12px;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .job-meta {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .job-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .keywords {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .kw-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    background: rgba(56,189,248,0.08);
+    border: 1px solid rgba(56,189,248,0.15);
+    border-radius: 3px;
+    color: var(--muted);
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  .icon-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Add job form */
+  .add-card {
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 12px;
+    transition: all 0.15s;
+    width: 100%;
+  }
+
+  .add-card:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(8,12,20,0.85);
+    backdrop-filter: blur(8px);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    width: 600px;
+    max-width: 90vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    transform: translateY(12px);
+    transition: transform 0.2s;
+  }
+
+  .modal-overlay.open .modal { transform: translateY(0); }
+
+  .modal h3 {
+    font-family: var(--sans);
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: var(--accent);
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus { border-color: var(--accent); }
+
+  .form-group select option { background: var(--surface2); }
+
+  .form-group textarea { resize: vertical; min-height: 100px; }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+  }
+
+  .btn-cancel {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 20px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-cancel:hover { border-color: var(--muted); color: var(--text); }
+
+  .btn-save {
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    color: #080c14;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-save:hover { background: #7dd3fc; }
+
+  /* Cover letter panel */
+  .cl-section {
+    margin-top: 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .cl-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .cl-header h2 {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+  }
+
+  .cl-generate-btn {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    color: #080c14;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .cl-generate-btn:hover { opacity: 0.85; }
+
+  .cl-select {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .cl-job-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .cl-job-btn.active, .cl-job-btn:hover {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  .cl-output {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    min-height: 200px;
+    white-space: pre-wrap;
+    position: relative;
+  }
+
+  .cl-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .cl-copy-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: var(--mono);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .cl-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--green);
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 13px;
+    color: var(--green);
+    z-index: 300;
+    transform: translateY(60px);
+    opacity: 0;
+    transition: all 0.3s;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .kanban { grid-template-columns: repeat(2, 1fr); }
+    .stats-row { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @media (max-width: 700px) {
+    main { padding: 16px; }
+    .kanban { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    header { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">job<span>agent</span>.js</div>
+    <div class="header-right">
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        <span id="last-run">Ready</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card total">
+        <div class="stat-label">Total Found</div>
+        <div class="stat-num" id="stat-total">0</div>
+        <div class="stat-sub">across all platforms</div>
+      </div>
+      <div class="stat-card applied">
+        <div class="stat-label">Applied</div>
+        <div class="stat-num" id="stat-applied">0</div>
+        <div class="stat-sub">auto + manual</div>
+      </div>
+      <div class="stat-card pending">
+        <div class="stat-label">Pending</div>
+        <div class="stat-num" id="stat-pending">0</div>
+        <div class="stat-sub">awaiting review</div>
+      </div>
+      <div class="stat-card interview">
+        <div class="stat-label">Interviews</div>
+        <div class="stat-num" id="stat-interview">0</div>
+        <div class="stat-sub">scheduled / pending</div>
+      </div>
+      <div class="stat-card rejected">
+        <div class="stat-label">Rejected</div>
+        <div class="stat-num" id="stat-rejected">0</div>
+        <div class="stat-sub">closed</div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <div class="search-box">
+        <span style="color:var(--muted)">⌕</span>
+        <input type="text" id="search-input" placeholder="Search by company, title, platform...">
+      </div>
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="found">Found</button>
+      <button class="filter-btn" data-filter="applied">Applied</button>
+      <button class="filter-btn" data-filter="interview">Interview</button>
+      <button class="filter-btn" data-filter="rejected">Rejected</button>
+      <button class="run-btn" id="run-btn" onclick="addSampleJobs()">
+        <span>▶</span> Add Test Jobs
+      </button>
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="board-section">
+      <h2>Application Pipeline</h2>
+      <div class="kanban">
+        <div class="column" id="col-found" ondragover="allowDrop(event)" ondrop="drop(event, 'found')">
+          <div class="col-header">
+            <div class="col-title">
+              <div class="col-dot" style="background:var(--muted)"></div>
+              Found
+            </div>
+            <span class="col-count" id="count-found">0</span>
+          </div>
+          <div id="cards-found"></div>
+          <button class="add-card" onclick="openModal()">+ Add manually</button>
+        </div>
+
+        <div class="column" id="col-applied" ondragover="allowDrop(event)" ondrop="drop(event, 'applied')">
+          <div class="col-header">
+            <div class="col-title">
+              <div class="col-dot" style="background:var(--green)"></div>
+              Applied
+            </div>
+            <span class="col-count" id="count-applied">0</span>
+          </div>
+          <div id="cards-applied"></div>
+        </div>
+
+        <div class="column" id="col-interview" ondragover="allowDrop(event)" ondrop="drop(event, 'interview')">
+          <div class="col-header">
+            <div class="col-title">
+              <div class="col-dot" style="background:var(--accent2)"></div>
+              Interview
+            </div>
+            <span class="col-count" id="count-interview">0</span>
+          </div>
+          <div id="cards-interview"></div>
+        </div>
+
+        <div class="column" id="col-rejected" ondragover="allowDrop(event)" ondrop="drop(event, 'rejected')">
+          <div class="col-header">
+            <div class="col-title">
+              <div class="col-dot" style="background:var(--red)"></div>
+              Rejected
+            </div>
+            <span class="col-count" id="count-rejected">0</span>
+          </div>
+          <div id="cards-rejected"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cover Letter Generator -->
+    <div class="cl-section">
+      <div class="cl-header">
+        <h2>✦ AI Cover Letter Generator</h2>
+        <button class="cl-generate-btn" id="cl-btn" onclick="generateCoverLetter()">
+          <span>✦</span> Generate
+        </button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div class="form-group" style="margin:0">
+          <label>Company Name</label>
+          <input type="text" id="cl-company" placeholder="e.g. Cloudflare">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Job Title</label>
+          <input type="text" id="cl-title" placeholder="e.g. IT Support Intern">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Job Description (paste it here)</label>
+        <textarea id="cl-description" placeholder="Paste the full job description here — the AI will match your cover letter to the specific keywords, tone, and requirements..."></textarea>
+      </div>
+
+      <div class="cl-output" id="cl-output">
+        <span style="color:var(--muted);font-size:13px;">Your customized cover letter will appear here. Fill in the fields above and click Generate.</span>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Add Job Modal -->
+<div class="modal-overlay" id="modal" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <h3>+ Add Job Manually</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="form-group">
+        <label>Job Title</label>
+        <input type="text" id="m-title" placeholder="IT Support Intern">
+      </div>
+      <div class="form-group">
+        <label>Company</label>
+        <input type="text" id="m-company" placeholder="Acme Corp">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="form-group">
+        <label>Platform</label>
+        <select id="m-platform">
+          <option value="LinkedIn">LinkedIn</option>
+          <option value="Indeed">Indeed</option>
+          <option value="Handshake">Handshake</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Location</label>
+        <input type="text" id="m-location" placeholder="Remote">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Job URL</label>
+      <input type="text" id="m-url" placeholder="https://...">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="m-notes" placeholder="Any notes about this role..." style="min-height:70px;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveJob()">Save Job</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// State
+// ============================================================
+let jobs = JSON.parse(localStorage.getItem('jobagent_jobs') || '[]');
+let dragJobId = null;
+let activeFilter = 'all';
+let searchQuery = '';
+
+// ============================================================
+// Render
+// ============================================================
+function render() {
+  const cols = ['found', 'applied', 'interview', 'rejected'];
+  cols.forEach(status => {
+    const container = document.getElementById(`cards-${status}`);
+    container.innerHTML = '';
+  });
+
+  let filtered = jobs;
+  if (activeFilter !== 'all') filtered = filtered.filter(j => j.status === activeFilter);
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    filtered = filtered.filter(j =>
+      j.title.toLowerCase().includes(q) ||
+      j.company.toLowerCase().includes(q) ||
+      j.platform.toLowerCase().includes(q)
+    );
+  }
+
+  filtered.forEach(job => {
+    const card = createCard(job);
+    const container = document.getElementById(`cards-${job.status}`);
+    if (container) container.appendChild(card);
+  });
+
+  updateStats();
+  updateCounts();
+}
+
+function createCard(job) {
+  const div = document.createElement('div');
+  div.className = 'job-card';
+  div.draggable = true;
+  div.dataset.id = job.id;
+  div.ondragstart = () => { dragJobId = job.id; };
+
+  const platformClass = job.platform.toLowerCase();
+  const kws = (job.keywords || []).slice(0, 3);
+
+  div.innerHTML = `
+    <div class="job-card-top">
+      <div class="job-title">${job.title}</div>
+      <span class="platform-badge ${platformClass}">${job.platform}</span>
+    </div>
+    <div class="job-company">${job.company}</div>
+    <div class="job-meta">
+      <span>📍 ${job.location || 'Remote'}</span>
+      <span>🕐 ${formatDate(job.date_found)}</span>
+    </div>
+    <div class="job-card-footer">
+      <div class="keywords">${kws.map(k => `<span class="kw-tag">${k}</span>`).join('')}</div>
+      <div class="card-actions">
+        ${job.url ? `<button class="icon-btn" onclick="openUrl('${job.url}')">↗</button>` : ''}
+        <button class="icon-btn" onclick="loadJobToCL('${job.id}')">✦ CL</button>
+        <button class="icon-btn" onclick="deleteJob('${job.id}')" style="color:var(--red)">✕</button>
+      </div>
+    </div>
+  `;
+  return div;
+}
+
+function updateStats() {
+  document.getElementById('stat-total').textContent = jobs.length;
+  document.getElementById('stat-applied').textContent = jobs.filter(j => j.status === 'applied').length;
+  document.getElementById('stat-pending').textContent = jobs.filter(j => j.status === 'found').length;
+  document.getElementById('stat-interview').textContent = jobs.filter(j => j.status === 'interview').length;
+  document.getElementById('stat-rejected').textContent = jobs.filter(j => j.status === 'rejected').length;
+}
+
+function updateCounts() {
+  ['found','applied','interview','rejected'].forEach(s => {
+    document.getElementById(`count-${s}`).textContent = jobs.filter(j => j.status === s).length;
+  });
+}
+
+// ============================================================
+// Drag and Drop
+// ============================================================
+function allowDrop(e) { e.preventDefault(); }
+
+function drop(e, newStatus) {
+  e.preventDefault();
+  if (!dragJobId) return;
+  const job = jobs.find(j => j.id === dragJobId);
+  if (job) {
+    job.status = newStatus;
+    saveJobs();
+    render();
+    showToast(`Moved to ${newStatus}`);
+  }
+  dragJobId = null;
+}
+
+// ============================================================
+// CRUD
+// ============================================================
+function openModal() {
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+function closeModalOutside(e) {
+  if (e.target.id === 'modal') closeModal();
+}
+
+function saveJob() {
+  const title = document.getElementById('m-title').value.trim();
+  const company = document.getElementById('m-company').value.trim();
+  if (!title || !company) { showToast('Title and company required'); return; }
+
+  const job = {
+    id: 'manual_' + Date.now(),
+    title,
+    company,
+    platform: document.getElementById('m-platform').value,
+    location: document.getElementById('m-location').value || 'Remote',
+    url: document.getElementById('m-url').value,
+    notes: document.getElementById('m-notes').value,
+    date_found: new Date().toISOString(),
+    status: 'found',
+    keywords: []
+  };
+
+  jobs.unshift(job);
+  saveJobs();
+  render();
+  closeModal();
+  showToast('Job added!');
+  ['m-title','m-company','m-location','m-url','m-notes'].forEach(id => document.getElementById(id).value = '');
+}
+
+function deleteJob(id) {
+  jobs = jobs.filter(j => j.id !== id);
+  saveJobs();
+  render();
+  showToast('Removed');
+}
+
+function openUrl(url) {
+  window.open(url, '_blank');
+}
+
+function saveJobs() {
+  localStorage.setItem('jobagent_jobs', JSON.stringify(jobs));
+}
+
+// ============================================================
+// Sample data
+// ============================================================
+function addSampleJobs() {
+  const samples = [
+    { id: 's1', title: 'IT Support Intern', company: 'Cloudflare', platform: 'LinkedIn', location: 'Remote', status: 'found', date_found: new Date().toISOString(), keywords: ['python', 'networking', 'linux'], url: '' },
+    { id: 's2', title: 'Frontend Developer Intern', company: 'Figma', platform: 'Handshake', location: 'Remote', status: 'applied', date_found: new Date().toISOString(), keywords: ['html', 'css', 'javascript'], url: '' },
+    { id: 's3', title: 'Help Desk Technician', company: 'IBM', platform: 'Indeed', location: 'New York, NY', status: 'interview', date_found: new Date().toISOString(), keywords: ['help desk', 'windows', 'ticketing'], url: '' },
+    { id: 's4', title: 'Web Dev Intern', company: 'Shopify', platform: 'LinkedIn', location: 'Remote', status: 'found', date_found: new Date().toISOString(), keywords: ['react', 'api', 'git'], url: '' },
+    { id: 's5', title: 'IT Systems Intern', company: 'Palo Alto Networks', platform: 'Handshake', location: 'Remote', status: 'applied', date_found: new Date().toISOString(), keywords: ['networking', 'vpn', 'linux'], url: '' },
+  ];
+  const existingIds = new Set(jobs.map(j => j.id));
+  samples.forEach(s => { if (!existingIds.has(s.id)) jobs.push(s); });
+  saveJobs();
+  render();
+  showToast('Sample jobs loaded!');
+}
+
+// ============================================================
+// Cover Letter Generator
+// ============================================================
+function loadJobToCL(id) {
+  const job = jobs.find(j => j.id === id);
+  if (!job) return;
+  document.getElementById('cl-company').value = job.company;
+  document.getElementById('cl-title').value = job.title;
+  document.getElementById('cl-output').innerHTML = '<span style="color:var(--muted);font-size:13px;">Click Generate to create a cover letter for this job.</span>';
+  document.querySelector('.cl-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function generateCoverLetter() {
+  const company = document.getElementById('cl-company').value.trim();
+  const title = document.getElementById('cl-title').value.trim();
+  const description = document.getElementById('cl-description').value.trim();
+
+  if (!company || !title) {
+    showToast('Enter company and job title first');
+    return;
+  }
+
+  const output = document.getElementById('cl-output');
+  output.innerHTML = '<div class="cl-loading"><div class="spinner"></div><span>Claude is writing your cover letter...</span></div>';
+  document.getElementById('cl-btn').disabled = true;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: `You are customizing a cover letter for Jules Sejour, a graduating IT student applying for internships and entry-level IT Support and Web Development roles.
+
+Jules's actual background:
+- Bachelor of Technology, Information Technology — SUNY Cobleskill (graduating May 2026), Honorable Mention Spring & Fall 2024
+- A.A. Liberal Arts — Rockland Community College (2023)
+- Skills: Python, Linux, HTML/CSS/JS, SQL, Network Security, Database Design, Git, Cloud Computing, IT Support Workflows, JIRA, Confluence
+- AI tools: Claude (primary), ChatGPT — used in real daily workflows
+- Projects: Personal portfolio (HTML/CSS/JS), job automation agent (Python/Playwright/Anthropic API), Photography Expo Website
+- Work: Dollar General (current), Stop & Shop, 7-Eleven, PDI NicePak, ShopRite
+- Email: yamijpg@proton.me | Phone: (856) 353-0412
+
+Use this base cover letter and customize it for the job. Replace [DATE] with today's date, replace [Company Name] and [Job Title] with the actual values, leave [Hiring Manager's Name], [Hiring Manager's Job Title], and [Company Address] as-is. Weave in 2-3 keywords from the job description naturally. Keep Jules's authentic voice — direct, genuine, not over-formal. Do NOT invent skills or experiences.
+
+Base cover letter:
+---
+[DATE]
+
+[Hiring Manager's Name]
+[Hiring Manager's Job Title]
+[Company Name]
+[Company Address]
+
+Dear [Hiring Manager's Name],
+
+Dear [Company Name] Team,
+
+I am writing to express my interest in the [Job Title] position at [Company Name]. I am graduating in May 2026 with a Bachelor of Technology in Information Technology from SUNY Cobleskill, and I am eager to bring my technical foundation, my enthusiasm for learning, and my strong work ethic to a team where I can grow and make a real contribution.
+
+Throughout my time at SUNY Cobleskill, I have built hands-on academic experience across a range of IT disciplines including Python programming, Linux operating systems, database concepts, network security, web development, and artificial intelligence. I have also completed coursework in AI ethics, systems analysis, and project management, which has given me a broader perspective on how technology functions within organizations and teams. What excites me most right now is continuing to develop in areas like software development and modern IT workflows — I am the kind of person who genuinely enjoys picking up new skills and figuring out how things work.
+
+I have also developed strong practical experience working with AI tools — Claude is my primary tool for research, problem-solving, and development workflows, and I use ChatGPT regularly as well. I built my personal portfolio website independently, using these tools to accelerate my learning and work through challenges in real time. I believe fluency with AI tools is increasingly valuable in any technical role, and it is something I am already putting to use every day.
+
+Beyond my technical background, I bring several years of customer-facing work experience across multiple retail and service environments. These roles have sharpened my communication skills, taught me how to stay composed and focused under pressure, and reinforced my ability to work as part of a team.
+
+I am reliable, I show up ready to work, and I take pride in doing things the right way.
+
+I would love the opportunity to speak with you about how I can contribute to [Company Name]. I am open to learning whatever tools, systems, or processes your team uses, and I am genuinely excited about the possibility of starting my career in a hands-on environment.
+
+Thank you for your time and consideration. I look forward to hearing from you soon.
+
+Sincerely,
+
+Jules Sejour
+Email: yamijpg@proton.me
+Phone: (856) 353-0412
+---
+
+Return ONLY the final customized cover letter text, ready to copy-paste.`,
+        messages: [{
+          role: 'user',
+          content: `Company: ${company}\nJob Title: ${title}\nJob Description: ${description || '(No description provided — use the title and company to write a targeted letter)'}\n\nWrite the cover letter now.`
+        }]
+      })
+    });
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text || 'Error generating cover letter. Check your API connection.';
+
+    output.innerHTML = `
+      <button class="cl-copy-btn" onclick="copyCL()">Copy</button>
+      <div id="cl-text" style="white-space:pre-wrap;line-height:1.7;">${text}</div>
+    `;
+    showToast('Cover letter generated!');
+  } catch (err) {
+    output.innerHTML = `<span style="color:var(--red)">Error: ${err.message}. Make sure the API is reachable.</span>`;
+  }
+
+  document.getElementById('cl-btn').disabled = false;
+}
+
+function copyCL() {
+  const text = document.getElementById('cl-text')?.textContent || '';
+  navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!'));
+}
+
+// ============================================================
+// Filters + Search
+// ============================================================
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
+    render();
+  });
+});
+
+document.getElementById('search-input').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  render();
+});
+
+// ============================================================
+// Toast
+// ============================================================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ============================================================
+// Init
+// ============================================================
+render();
+</script>
+</body>
+</html>

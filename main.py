@@ -31,14 +31,17 @@ def load_config(path: str = "config.json") -> dict:
         return json.load(f)
 
 
-async def run(keywords: str, location: str, max_jobs: int, dry_run: bool, config: dict):
+async def run(keywords: str, locations: list[str], max_jobs: int, dry_run: bool, config: dict):
     print("\n" + "="*60)
     print("  JOB AUTOMATION AGENT — Jules Sejour")
     print("="*60 + "\n")
+    print(f"[Main] Keywords : {keywords}")
+    print(f"[Main] Locations: {', '.join(locations)}")
+    print(f"[Main] Max/platform/location: {max_jobs}\n")
 
     # 1. Scrape
     scraper = JobScraper(config)
-    jobs = await scraper.scrape_all(keywords, location, max_per_platform=max_jobs)
+    jobs = await scraper.scrape_all(keywords, locations, max_per_platform=max_jobs)
 
     if not jobs:
         print("[Main] No jobs found. Try different keywords or check your sessions.")
@@ -99,14 +102,20 @@ async def run(keywords: str, location: str, max_jobs: int, dry_run: bool, config
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Job Automation Agent")
     parser.add_argument("--keywords", default=None, help="Job search keywords")
-    parser.add_argument("--location", default=None, help="Job location (e.g., 'Remote', 'New York')")
-    parser.add_argument("--max", type=int, default=None, help="Max jobs per platform")
+    parser.add_argument("--location", default=None, help="Comma-separated locations e.g. 'Remote,Hybrid'")
+    parser.add_argument("--max", type=int, default=None, help="Max jobs per platform per location")
     parser.add_argument("--dry-run", action="store_true", help="Scrape only, don't apply")
     args = parser.parse_args()
 
     config = load_config()
     keywords = args.keywords or config.get("default_keywords", "IT Support internship")
-    location = args.location or config.get("default_location", "Remote")
-    max_jobs = args.max or config.get("max_jobs_per_platform", 10)
+    max_jobs = args.max or config.get("max_jobs_per_platform", 50)
 
-    asyncio.run(run(keywords, location, max_jobs, args.dry_run, config))
+    # Parse locations — support comma-separated list in both CLI and config
+    if args.location:
+        locations = [l.strip() for l in args.location.split(",")]
+    else:
+        raw = config.get("default_location", "Remote")
+        locations = [l.strip() for l in raw.split(",")]
+
+    asyncio.run(run(keywords, locations, max_jobs, args.dry_run, config))

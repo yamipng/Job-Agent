@@ -213,23 +213,34 @@ class JobScraper:
 
         return jobs
 
-    async def scrape_all(self, keywords: str, location: str = "Remote", max_per_platform: int = 15) -> list[JobListing]:
-        print(f"[Agent] Starting scrape for: '{keywords}' in '{location}'")
-        tasks = [
-            self.scrape_linkedin(keywords, location, max_per_platform),
-            self.scrape_indeed(keywords, location, max_per_platform),
-            self.scrape_handshake(keywords, max_per_platform),
-        ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+    async def scrape_all(self, keywords: str, locations: list[str] = None, max_per_platform: int = 15) -> list[JobListing]:
+        if locations is None:
+            locations = ["Remote"]
+
         all_jobs = []
-        for result in results:
-            if isinstance(result, list):
-                all_jobs.extend(result)
-            else:
-                print(f"[Agent] Platform error: {result}")
+        seen_urls: set[str] = set()
+
+        for location in locations:
+            print(f"[Agent] Scraping: '{keywords}' in '{location}'")
+            tasks = [
+                self.scrape_linkedin(keywords, location, max_per_platform),
+                self.scrape_indeed(keywords, location, max_per_platform),
+                self.scrape_handshake(keywords, max_per_platform),
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, list):
+                    for job in result:
+                        # Deduplicate by URL so Remote + Hybrid don't produce duplicate listings
+                        key = job.url if job.url else f"{job.company}_{job.title}"
+                        if key not in seen_urls:
+                            seen_urls.add(key)
+                            all_jobs.append(job)
+                else:
+                    print(f"[Agent] Platform error: {result}")
 
         self.results = all_jobs
-        print(f"[Agent] Found {len(all_jobs)} total jobs")
+        print(f"[Agent] Found {len(all_jobs)} unique jobs across {len(locations)} location(s)")
         return all_jobs
 
     def save_results(self, filepath: str = "data/jobs.json"):

@@ -1,8 +1,8 @@
 {
   "anthropic_api_key": "YOUR_ANTHROPIC_API_KEY_HERE",
-  "default_keywords": "IT Support internship web developer",
-  "default_location": "Remote",
-  "max_jobs_per_platform": 10,
+  "default_keywords": "IT Support intern web developer intern AI engineer intern automation intern machine learning intern data analyst intern",
+  "default_location": "Remote, Hybrid",
+  "max_jobs_per_platform": 50,
   "resume_path": "assets/Jules_Sejour_Resume.pdf",
 
   "user_profile": {

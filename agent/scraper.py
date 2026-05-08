@@ -1,13 +1,13 @@
 """
 Job scraper module for LinkedIn, Indeed, and Handshake.
 Uses Playwright for browser automation.
+Runs in non-headless (visible) mode to bypass bot detection.
 """
 
 import asyncio
 import json
 from datetime import datetime
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
-from typing import Optional  # noqa: kept for future use
 from dataclasses import dataclass, asdict
 
 
@@ -31,52 +31,76 @@ class JobScraper:
         self.config = config
         self.results: list[JobListing] = []
 
-    async def scrape_linkedin(self, keywords: str, location: str, max_jobs: int = 20) -> list[JobListing]:
+    async def scrape_linkedin(self, keywords: str, location: str, max_jobs: int = 50) -> list[JobListing]:
         jobs = []
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(headless=False, slow_mo=50)
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             )
             page = await context.new_page()
             try:
+                # Load saved session
+                try:
+                    with open("sessions/linkedin_cookies.json", "r") as f:
+                        cookies = json.load(f)
+                        await context.add_cookies(cookies)
+                    print("[LinkedIn] Session loaded.")
+                except FileNotFoundError:
+                    print("[LinkedIn] No saved session. Run auth.py --platform linkedin first.")
+                    await browser.close()
+                    return jobs
+
                 search_url = (
                     f"https://www.linkedin.com/jobs/search/"
                     f"?keywords={keywords.replace(' ', '%20')}"
                     f"&location={location.replace(' ', '%20')}"
-                    f"&f_TP=1%2C2&f_JT=I%2CF"  # past month, internship+full-time
+                    f"&f_TP=1%2C2&f_JT=I%2CF"
                 )
-                await page.goto(search_url, timeout=30000)
-                await page.wait_for_timeout(3000)
+                print(f"[LinkedIn] Loading search page...")
+                await page.goto(search_url, timeout=60000, wait_until="domcontentloaded")
+
+                # Wait for job cards to appear in DOM
+                print("[LinkedIn] Waiting for job cards to load...")
+                try:
+                    await page.wait_for_selector(".job-search-card", timeout=15000)
+                except PlaywrightTimeoutError:
+                    print("[LinkedIn] Job cards did not appear — session may have expired. Re-run auth.py.")
+                    await browser.close()
+                    return jobs
+
+                # Extra wait to make sure all cards render
+                await page.wait_for_timeout(2000)
 
                 job_cards = await page.query_selector_all(".job-search-card")
+                print(f"[LinkedIn] Found {len(job_cards)} job cards")
+
                 for i, card in enumerate(job_cards[:max_jobs]):
                     try:
-                        title_el = await card.query_selector(".base-search-card__title")
-                        company_el = await card.query_selector(".base-search-card__subtitle")
+                        title_el    = await card.query_selector(".base-search-card__title")
+                        company_el  = await card.query_selector(".base-search-card__subtitle")
                         location_el = await card.query_selector(".job-search-card__location")
-                        link_el = await card.query_selector("a.base-card__full-link")
+                        link_el     = await card.query_selector("a.base-card__full-link")
 
-                        title = await title_el.inner_text() if title_el else "Unknown"
-                        company = await company_el.inner_text() if company_el else "Unknown"
+                        title         = await title_el.inner_text()    if title_el    else "Unknown"
+                        company       = await company_el.inner_text()  if company_el  else "Unknown"
                         location_text = await location_el.inner_text() if location_el else location
-                        url = await link_el.get_attribute("href") if link_el else ""
+                        url           = await link_el.get_attribute("href") if link_el else ""
 
-                        # Get job description
                         description = ""
                         if url:
                             try:
                                 detail_page = await context.new_page()
-                                await detail_page.goto(url, timeout=20000)
+                                await detail_page.goto(url, timeout=30000, wait_until="domcontentloaded")
                                 await detail_page.wait_for_timeout(2000)
                                 desc_el = await detail_page.query_selector(".show-more-less-html__markup")
                                 if desc_el:
                                     description = await desc_el.inner_text()
                                 await detail_page.close()
-                            except Exception:
+                            except Exception as e:
                                 description = "Description unavailable"
 
-                        job = JobListing(
+                        jobs.append(JobListing(
                             id=f"linkedin_{i}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
                             title=title.strip(),
                             company=company.strip(),
@@ -85,50 +109,72 @@ class JobScraper:
                             url=url,
                             platform="LinkedIn",
                             date_found=datetime.now().isoformat(),
-                        )
-                        jobs.append(job)
+                        ))
+                        print(f"[LinkedIn] {i+1}. {title.strip()} @ {company.strip()}")
                     except Exception as e:
                         print(f"[LinkedIn] Error parsing card {i}: {e}")
                         continue
 
             except PlaywrightTimeoutError:
                 print("[LinkedIn] Page load timed out")
+            except Exception as e:
+                print(f"[LinkedIn] Unexpected error: {e}")
             finally:
                 await browser.close()
 
+        print(f"[LinkedIn] Done — {len(jobs)} jobs scraped")
         return jobs
 
-    async def scrape_indeed(self, keywords: str, location: str, max_jobs: int = 20) -> list[JobListing]:
+    async def scrape_indeed(self, keywords: str, location: str, max_jobs: int = 50) -> list[JobListing]:
         jobs = []
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(headless=False, slow_mo=50)
             context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             )
             page = await context.new_page()
             try:
+                try:
+                    with open("sessions/indeed_cookies.json", "r") as f:
+                        cookies = json.load(f)
+                        await context.add_cookies(cookies)
+                except FileNotFoundError:
+                    pass
+
                 search_url = (
                     f"https://www.indeed.com/jobs?q={keywords.replace(' ', '+')}"
                     f"&l={location.replace(' ', '+')}&jt=internship"
                 )
-                await page.goto(search_url, timeout=30000)
-                await page.wait_for_timeout(3000)
+                print(f"[Indeed] Loading search page...")
+                await page.goto(search_url, timeout=60000, wait_until="domcontentloaded")
+
+                print("[Indeed] Waiting for job cards...")
+                try:
+                    await page.wait_for_selector(".job_seen_beacon", timeout=15000)
+                except PlaywrightTimeoutError:
+                    print("[Indeed] Job cards did not appear.")
+                    await browser.close()
+                    return jobs
+
+                await page.wait_for_timeout(2000)
 
                 job_cards = await page.query_selector_all(".job_seen_beacon")
+                print(f"[Indeed] Found {len(job_cards)} job cards")
+
                 for i, card in enumerate(job_cards[:max_jobs]):
                     try:
-                        title_el = await card.query_selector("[data-testid='jobTitle'] span")
-                        company_el = await card.query_selector("[data-testid='company-name']")
+                        title_el    = await card.query_selector("[data-testid='jobTitle'] span")
+                        company_el  = await card.query_selector("[data-testid='company-name']")
                         location_el = await card.query_selector("[data-testid='text-location']")
-                        link_el = await card.query_selector("a[data-jk]")
+                        link_el     = await card.query_selector("a[data-jk]")
 
-                        title = await title_el.inner_text() if title_el else "Unknown"
-                        company = await company_el.inner_text() if company_el else "Unknown"
+                        title         = await title_el.inner_text()    if title_el    else "Unknown"
+                        company       = await company_el.inner_text()  if company_el  else "Unknown"
                         location_text = await location_el.inner_text() if location_el else location
-                        job_id = await link_el.get_attribute("data-jk") if link_el else str(i)
-                        url = f"https://www.indeed.com/viewjob?jk={job_id}" if job_id else ""
+                        job_id        = await link_el.get_attribute("data-jk") if link_el else str(i)
+                        url           = f"https://www.indeed.com/viewjob?jk={job_id}" if job_id else ""
 
-                        job = JobListing(
+                        jobs.append(JobListing(
                             id=f"indeed_{job_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
                             title=title.strip(),
                             company=company.strip(),
@@ -137,61 +183,71 @@ class JobScraper:
                             url=url,
                             platform="Indeed",
                             date_found=datetime.now().isoformat(),
-                        )
-                        jobs.append(job)
+                        ))
+                        print(f"[Indeed] {i+1}. {title.strip()} @ {company.strip()}")
                     except Exception as e:
                         print(f"[Indeed] Error parsing card {i}: {e}")
                         continue
 
             except PlaywrightTimeoutError:
                 print("[Indeed] Page load timed out")
+            except Exception as e:
+                print(f"[Indeed] Unexpected error: {e}")
             finally:
                 await browser.close()
 
+        print(f"[Indeed] Done — {len(jobs)} jobs scraped")
         return jobs
 
-    async def scrape_handshake(self, keywords: str, max_jobs: int = 20) -> list[JobListing]:
-        """
-        Handshake requires university SSO login.
-        This scraper assumes you are already logged in via saved session cookies.
-        Run `python agent/auth.py --platform handshake` to save your session first.
-        """
+    async def scrape_handshake(self, keywords: str, max_jobs: int = 50) -> list[JobListing]:
         jobs = []
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(headless=False, slow_mo=50)
             context = await browser.new_context()
 
-            # Load saved cookies if they exist
             try:
                 with open("sessions/handshake_cookies.json", "r") as f:
                     cookies = json.load(f)
                     await context.add_cookies(cookies)
+                print("[Handshake] Session loaded.")
             except FileNotFoundError:
-                print("[Handshake] No saved session found. Run auth.py first.")
+                print("[Handshake] No saved session. Run auth.py first.")
                 await browser.close()
                 return jobs
 
             page = await context.new_page()
             try:
                 search_url = f"https://app.joinhandshake.com/stu/postings?search={keywords.replace(' ', '+')}&job_type=internship"
-                await page.goto(search_url, timeout=30000)
-                await page.wait_for_timeout(4000)
+                print(f"[Handshake] Loading search page...")
+                await page.goto(search_url, timeout=60000, wait_until="domcontentloaded")
+
+                print("[Handshake] Waiting for job cards...")
+                try:
+                    await page.wait_for_selector("[data-hook='job-card']", timeout=15000)
+                except PlaywrightTimeoutError:
+                    print("[Handshake] Job cards did not appear — session may have expired.")
+                    await browser.close()
+                    return jobs
+
+                await page.wait_for_timeout(2000)
 
                 job_cards = await page.query_selector_all("[data-hook='job-card']")
+                print(f"[Handshake] Found {len(job_cards)} job cards")
+
                 for i, card in enumerate(job_cards[:max_jobs]):
                     try:
-                        title_el = await card.query_selector("[data-hook='job-title']")
-                        company_el = await card.query_selector("[data-hook='employer-name']")
+                        title_el    = await card.query_selector("[data-hook='job-title']")
+                        company_el  = await card.query_selector("[data-hook='employer-name']")
                         location_el = await card.query_selector("[data-hook='job-location']")
-                        link_el = await card.query_selector("a")
+                        link_el     = await card.query_selector("a")
 
-                        title = await title_el.inner_text() if title_el else "Unknown"
-                        company = await company_el.inner_text() if company_el else "Unknown"
+                        title         = await title_el.inner_text()    if title_el    else "Unknown"
+                        company       = await company_el.inner_text()  if company_el  else "Unknown"
                         location_text = await location_el.inner_text() if location_el else "Remote/On-site"
-                        href = await link_el.get_attribute("href") if link_el else ""
-                        url = f"https://app.joinhandshake.com{href}" if href.startswith("/") else href
+                        href          = await link_el.get_attribute("href") if link_el else ""
+                        url           = f"https://app.joinhandshake.com{href}" if href.startswith("/") else href
 
-                        job = JobListing(
+                        jobs.append(JobListing(
                             id=f"handshake_{i}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
                             title=title.strip(),
                             company=company.strip(),
@@ -200,20 +256,23 @@ class JobScraper:
                             url=url,
                             platform="Handshake",
                             date_found=datetime.now().isoformat(),
-                        )
-                        jobs.append(job)
+                        ))
+                        print(f"[Handshake] {i+1}. {title.strip()} @ {company.strip()}")
                     except Exception as e:
                         print(f"[Handshake] Error parsing card {i}: {e}")
                         continue
 
             except PlaywrightTimeoutError:
                 print("[Handshake] Page load timed out")
+            except Exception as e:
+                print(f"[Handshake] Unexpected error: {e}")
             finally:
                 await browser.close()
 
+        print(f"[Handshake] Done — {len(jobs)} jobs scraped")
         return jobs
 
-    async def scrape_all(self, keywords: str, locations: list[str] = None, max_per_platform: int = 15) -> list[JobListing]:
+    async def scrape_all(self, keywords: str, locations: list[str] = None, max_per_platform: int = 50) -> list[JobListing]:
         if locations is None:
             locations = ["Remote"]
 
@@ -221,26 +280,24 @@ class JobScraper:
         seen_urls: set[str] = set()
 
         for location in locations:
-            print(f"[Agent] Scraping: '{keywords}' in '{location}'")
-            tasks = [
+            print(f"\n[Agent] Scraping: '{keywords}' in '{location}'")
+            for coro in [
                 self.scrape_linkedin(keywords, location, max_per_platform),
                 self.scrape_indeed(keywords, location, max_per_platform),
                 self.scrape_handshake(keywords, max_per_platform),
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for result in results:
-                if isinstance(result, list):
+            ]:
+                try:
+                    result = await coro
                     for job in result:
-                        # Deduplicate by URL so Remote + Hybrid don't produce duplicate listings
                         key = job.url if job.url else f"{job.company}_{job.title}"
                         if key not in seen_urls:
                             seen_urls.add(key)
                             all_jobs.append(job)
-                else:
-                    print(f"[Agent] Platform error: {result}")
+                except Exception as e:
+                    print(f"[Agent] Platform error: {e}")
 
         self.results = all_jobs
-        print(f"[Agent] Found {len(all_jobs)} unique jobs across {len(locations)} location(s)")
+        print(f"\n[Agent] Found {len(all_jobs)} unique jobs across {len(locations)} location(s)")
         return all_jobs
 
     def save_results(self, filepath: str = "data/jobs.json"):

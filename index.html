@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Job Agent"/>
+<meta name="theme-color" content="#080c14"/>
+<title>Job Agent — Jules Sejour</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icons/icon-192.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:      #080c14;
+  --surface: #0d1424;
+  --s2:      #111c30;
+  --border:  #1e3050;
+  --accent:  #38bdf8;
+  --accent2: #818cf8;
+  --green:   #34d399;
+  --amber:   #fbbf24;
+  --red:     #f87171;
+  --text:    #e2e8f0;
+  --muted:   #64748b;
+  --mono:    'IBM Plex Mono', monospace;
+  --sans:    'Syne', sans-serif;
+  --nav-h:   56px;
+  --bot-h:   calc(64px + env(safe-area-inset-bottom));
+  --radius:  10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; -webkit-tap-highlight-color: transparent; }
+
+body {
+  background: var(--bg); color: var(--text);
+  font-family: var(--mono);
+  height: 100%; overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Grid bg */
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(56,189,248,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56,189,248,.03) 1px, transparent 1px);
+  background-size: 40px 40px; pointer-events: none;
+}
+
+/* ── TOP NAV ─────────────────────────────────────── */
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: var(--nav-h);
+  padding: 0 16px;
+  padding-top: env(safe-area-inset-top);
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(8,12,20,.9); backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+.topbar-logo {
+  font-family: var(--sans); font-size: 15px; font-weight: 800;
+  letter-spacing: -.5px; color: var(--text);
+}
+.topbar-logo span { color: var(--accent); }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.status-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; background: var(--s2);
+  border: 1px solid var(--border); border-radius: 20px;
+  font-size: 10px; color: var(--muted);
+}
+.status-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 6px var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── SCREEN CONTAINER ────────────────────────────── */
+.screens {
+  position: fixed;
+  top: var(--nav-h); left: 0; right: 0;
+  bottom: var(--bot-h);
+  overflow: hidden; z-index: 1;
+}
+
+.screen {
+  position: absolute; inset: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 16px 24px;
+  display: none;
+  animation: fadeIn .2s ease;
+}
+.screen.active { display: block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+/* ── BOTTOM NAV ──────────────────────────────────── */
+.bottomnav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+  height: var(--bot-h);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: rgba(8,12,20,.95); backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: flex-start; padding-top: 8px;
+}
+.bn-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; gap: 3px; padding: 4px 0;
+  cursor: pointer; border: none; background: none;
+  color: var(--muted); transition: color .2s;
+}
+.bn-item.active { color: var(--accent); }
+.bn-icon { font-size: 20px; line-height: 1; }
+.bn-label {
+  font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+}
+
+/* ── STATS ROW ───────────────────────────────────── */
+.stats-row {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 8px; margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px;
+  position: relative; overflow: hidden;
+}
+.stat-card::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+}
+.stat-card.total::before   { background: var(--accent); }
+.stat-card.applied::before { background: var(--green); }
+.stat-card.pending::before { background: var(--amber); }
+.stat-card.interview::before { background: var(--accent2); }
+.stat-card.rejected::before { background: var(--red); }
+.stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 4px; }
+.stat-num { font-family: var(--sans); font-weight: 800; font-size: 28px; line-height: 1; }
+.stat-card.total    .stat-num { color: var(--accent); }
+.stat-card.applied  .stat-num { color: var(--green); }
+.stat-card.pending  .stat-num { color: var(--amber); }
+.stat-card.interview .stat-num { color: var(--accent2); }
+.stat-card.rejected .stat-num { color: var(--red); }
+
+/* ── SECTION HEADER ──────────────────────────────── */
+.sec-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.sec-title {
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1.5px;
+}
+.sec-count {
+  font-size: 10px; color: var(--muted);
+  background: var(--s2); padding: 2px 8px; border-radius: 10px;
+}
+
+/* ── FILTER PILLS ────────────────────────────────── */
+.filter-row {
+  display: flex; gap: 6px; margin-bottom: 14px;
+  overflow-x: auto; padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.filter-row::-webkit-scrollbar { display: none; }
+.filter-pill {
+  flex-shrink: 0; padding: 5px 12px;
+  background: var(--s2); border: 1px solid var(--border);
+  border-radius: 20px; font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted);
+  cursor: pointer; transition: all .15s;
+}
+.filter-pill.active { background: var(--s2); color: var(--accent); border-color: var(--accent); }
+
+/* ── SEARCH ──────────────────────────────────────── */
+.search-wrap {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.search-wrap input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text); font-family: var(--mono); font-size: 13px;
+}
+.search-wrap input::placeholder { color: var(--muted); }
+
+/* ── JOB CARDS ───────────────────────────────────── */
+.job-card {
+  background: var(--s2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px;
+  margin-bottom: 10px; transition: border-color .15s;
+  animation: fadeIn .25s ease;
+}
+.job-card:active { border-color: var(--accent); }
+
+.jc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+.jc-title { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3; flex: 1; }
+.jc-platform {
+  font-size: 9px; padding: 2px 7px; border-radius: 4px;
+  font-weight: 600; white-space: nowrap; flex-shrink: 0;
+}
+.jc-platform.linkedin  { background: rgba(56,189,248,.15); color: var(--accent); }
+.jc-platform.indeed    { background: rgba(251,191,36,.15);  color: var(--amber); }
+.jc-platform.handshake { background: rgba(129,140,248,.15); color: var(--accent2); }
+.jc-platform.other     { background: rgba(100,116,139,.15); color: var(--muted); }
+
+.jc-company { font-size: 11px; color: var(--accent); margin-bottom: 4px; }
+.jc-meta { font-size: 10px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; }
+
+.jc-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.jc-status {
+  font-size: 9px; padding: 3px 8px; border-radius: 3px;
+  text-transform: uppercase; letter-spacing: .08em; font-weight: 600;
+}
+.jc-status.found     { background: rgba(100,116,139,.15); color: var(--muted); }
+.jc-status.applied   { background: rgba(52,211,153,.15);  color: var(--green); }
+.jc-status.interview { background: rgba(129,140,248,.15); color: var(--accent2); }
+.jc-status.rejected  { background: rgba(248,113,113,.15); color: var(--red); }
+
+.jc-actions { display: flex; gap: 6px; }
+.jc-btn {
+  background: none; border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 10px;
+  color: var(--muted); font-size: 11px; font-family: var(--mono);
+  cursor: pointer; transition: all .15s;
+}
+.jc-btn:active { border-color: var(--accent); color: var(--accent); }
+
+/* ── STATUS SELECTOR SHEET ───────────────────────── */
+.sheet-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+  display: none; align-items: flex-end;
+}
+.sheet-overlay.open { display: flex; }
+.sheet {
+  width: 100%; background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0; padding: 20px 16px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  animation: slideUp .25s ease;
+}
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+
+.sheet-handle {
+  width: 36px; height: 4px; background: var(--border);
+  border-radius: 2px; margin: 0 auto 16px;
+}
+.sheet-title { font-family: var(--sans); font-size: 14px; font-weight: 700; margin-bottom: 16px; }
+.sheet-options { display: flex; flex-direction: column; gap: 8px; }
+.sheet-opt {
+  padding: 14px 16px; background: var(--s2);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  font-size: 13px; color: var(--text); cursor: pointer;
+  transition: all .15s; display: flex; align-items: center; gap: 10px;
+}
+.sheet-opt:active { border-color: var(--accent); }
+.sheet-opt-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.sheet-cancel {
+  margin-top: 8px; width: 100%; padding: 14px;
+  background: none; border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--muted);
+  font-family: var(--mono); font-size: 12px; cursor: pointer;
+}
+
+/* ── ADD JOB MODAL ───────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.7); backdrop-filter: blur(8px);
+  display: none; align-items: flex-end;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  width: 100%; background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 16px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  max-height: 90vh; overflow-y: auto;
+  animation: slideUp .25s ease;
+}
+.modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 16px; }
+.modal h3 { font-family: var(--sans); font-size: 16px; font-weight: 700; margin-bottom: 16px; color: var(--accent); }
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 5px; }
+.field input, .field select, .field textarea {
+  width: 100%; background: var(--s2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 11px 13px; color: var(--text);
+  font-family: var(--mono); font-size: 13px; outline: none;
+  -webkit-appearance: none; appearance: none;
+  transition: border-color .15s;
+}
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+.field select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+.field select option { background: #111c30; }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+.btn-save { flex: 1; background: var(--accent); border: none; border-radius: 8px; padding: 13px; color: #080c14; font-family: var(--mono); font-size: 12px; font-weight: 700; cursor: pointer; }
+.btn-cancel { padding: 13px 20px; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-family: var(--mono); font-size: 12px; cursor: pointer; }
+
+/* ── COVER LETTER SCREEN ─────────────────────────── */
+.cl-form { display: flex; flex-direction: column; gap: 12px; }
+.cl-generate-btn {
+  width: 100%; padding: 14px;
+  background: linear-gradient(135deg, var(--accent2), var(--accent));
+  border: none; border-radius: var(--radius); color: #080c14;
+  font-family: var(--mono); font-size: 12px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 4px;
+}
+.cl-generate-btn:disabled { opacity: .6; }
+.cl-output {
+  background: var(--s2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+  font-size: 12px; line-height: 1.75; color: var(--text);
+  min-height: 160px; white-space: pre-wrap;
+  position: relative; margin-top: 8px;
+}
+.cl-placeholder { color: var(--muted); font-size: 12px; }
+.cl-copy-btn {
+  position: absolute; top: 10px; right: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 10px;
+  color: var(--muted); font-size: 10px; font-family: var(--mono);
+  cursor: pointer;
+}
+.cl-loading { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+.spinner {
+  width: 14px; height: 14px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .8s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── OVERVIEW SCREEN ─────────────────────────────── */
+.overview-stats {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-bottom: 20px;
+}
+.ov-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+}
+.ov-num { font-family: var(--sans); font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+.ov-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+
+.quick-actions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.qa-btn {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); font-family: var(--mono); font-size: 12px;
+  cursor: pointer; transition: border-color .15s; width: 100%;
+}
+.qa-btn:active { border-color: var(--accent); color: var(--accent); }
+.qa-icon { font-size: 18px; }
+
+/* ── SETTINGS SCREEN ─────────────────────────────── */
+.settings-list { display: flex; flex-direction: column; gap: 8px; }
+.setting-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.si-label { font-size: 12px; color: var(--text); }
+.si-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.si-val { font-size: 11px; color: var(--accent); text-align: right; }
+
+/* ── TOAST ───────────────────────────────────────── */
+.toast {
+  position: fixed; bottom: calc(var(--bot-h) + 12px); left: 16px; right: 16px;
+  z-index: 300; background: var(--surface);
+  border: 1px solid var(--green); border-radius: var(--radius);
+  padding: 12px 16px; font-size: 12px; color: var(--green);
+  transform: translateY(20px); opacity: 0;
+  transition: all .3s; pointer-events: none;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* ── EMPTY STATE ─────────────────────────────────── */
+.empty-state {
+  text-align: center; padding: 48px 24px; color: var(--muted);
+}
+.empty-icon { font-size: 40px; margin-bottom: 12px; opacity: .3; }
+.empty-text { font-size: 12px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="topbar-logo">job<span>agent</span></div>
+  <div class="topbar-right">
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      <span>Ready</span>
+    </div>
+  </div>
+</header>
+
+<!-- SCREENS -->
+<div class="screens">
+
+  <!-- ── OVERVIEW ── -->
+  <div class="screen active" id="screen-overview">
+    <div class="overview-stats">
+      <div class="ov-card"><div class="ov-num" id="ov-total" style="color:var(--accent)">0</div><div class="ov-label">Total Jobs</div></div>
+      <div class="ov-card"><div class="ov-num" id="ov-applied" style="color:var(--green)">0</div><div class="ov-label">Applied</div></div>
+      <div class="ov-card"><div class="ov-num" id="ov-interview" style="color:var(--accent2)">0</div><div class="ov-label">Interviews</div></div>
+      <div class="ov-card"><div class="ov-num" id="ov-rejected" style="color:var(--red)">0</div><div class="ov-label">Rejected</div></div>
+    </div>
+
+    <div class="sec-header"><div class="sec-title">Quick Actions</div></div>
+    <div class="quick-actions">
+      <button class="qa-btn" onclick="goScreen('jobs'); openModal()">
+        <span class="qa-icon">➕</span> Add a Job Manually
+      </button>
+      <button class="qa-btn" onclick="goScreen('cl')">
+        <span class="qa-icon">✦</span> Generate Cover Letter
+      </button>
+      <button class="qa-btn" onclick="addSampleJobs()">
+        <span class="qa-icon">🧪</span> Load Sample Jobs
+      </button>
+    </div>
+
+    <div class="sec-header"><div class="sec-title">Recent</div></div>
+    <div id="recent-list"></div>
+  </div>
+
+  <!-- ── JOBS ── -->
+  <div class="screen" id="screen-jobs">
+    <div class="search-wrap">
+      <span style="color:var(--muted)">⌕</span>
+      <input type="text" id="search-input" placeholder="Search jobs…" oninput="onSearch(this.value)"/>
+    </div>
+    <div class="filter-row" id="filter-row">
+      <button class="filter-pill active" data-filter="all" onclick="setFilter('all',this)">All</button>
+      <button class="filter-pill" data-filter="found" onclick="setFilter('found',this)">Found</button>
+      <button class="filter-pill" data-filter="applied" onclick="setFilter('applied',this)">Applied</button>
+      <button class="filter-pill" data-filter="interview" onclick="setFilter('interview',this)">Interview</button>
+      <button class="filter-pill" data-filter="rejected" onclick="setFilter('rejected',this)">Rejected</button>
+    </div>
+    <div class="sec-header">
+      <div class="sec-title">Jobs</div>
+      <div class="sec-count" id="jobs-count">0</div>
+    </div>
+    <div id="jobs-list"></div>
+    <div style="height:16px"></div>
+  </div>
+
+  <!-- ── COVER LETTER ── -->
+  <div class="screen" id="screen-cl">
+    <div class="sec-header"><div class="sec-title">✦ Cover Letter Generator</div></div>
+    <div class="cl-form">
+      <div class="field">
+        <label>Company Name</label>
+        <input type="text" id="cl-company" placeholder="e.g. Cloudflare"/>
+      </div>
+      <div class="field">
+        <label>Job Title</label>
+        <input type="text" id="cl-title" placeholder="e.g. IT Support Intern"/>
+      </div>
+      <div class="field">
+        <label>Job Description</label>
+        <textarea id="cl-description" rows="5" placeholder="Paste the job description here — Claude will match your letter to the role…"></textarea>
+      </div>
+      <button class="cl-generate-btn" id="cl-btn" onclick="generateCoverLetter()">
+        <span>✦</span> Generate with Claude AI
+      </button>
+    </div>
+    <div class="cl-output" id="cl-output">
+      <span class="cl-placeholder">Your customized cover letter will appear here.</span>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS ── -->
+  <div class="screen" id="screen-settings">
+    <div class="sec-header" style="margin-bottom:16px"><div class="sec-title">Settings</div></div>
+    <div class="settings-list">
+      <div class="setting-item">
+        <div><div class="si-label">Version</div><div class="si-sub">Job Automation Agent</div></div>
+        <div class="si-val">1.0 PWA</div>
+      </div>
+      <div class="setting-item">
+        <div><div class="si-label">Storage</div><div class="si-sub">Jobs saved in this browser</div></div>
+        <div class="si-val" id="storage-count">0 jobs</div>
+      </div>
+      <div class="setting-item">
+        <div><div class="si-label">AI Model</div><div class="si-sub">Cover letter generation</div></div>
+        <div class="si-val">Claude Sonnet</div>
+      </div>
+    </div>
+
+    <div style="margin-top:24px">
+      <div class="sec-header" style="margin-bottom:12px"><div class="sec-title">Data</div></div>
+      <div class="settings-list">
+        <button class="qa-btn" onclick="exportJobs()"><span class="qa-icon">📤</span> Export Jobs as JSON</button>
+        <button class="qa-btn" onclick="clearJobs()" style="color:var(--red)"><span class="qa-icon">🗑</span> Clear All Jobs</button>
+      </div>
+    </div>
+
+    <div style="margin-top:24px; padding: 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);">
+      <div style="font-size:11px; color:var(--muted); line-height:1.7">
+        <strong style="color:var(--accent)">How to use:</strong><br/>
+        1. Add jobs manually or run <code style="color:var(--amber)">python main.py --dry-run</code> on your laptop<br/>
+        2. Tap a job card → change its status<br/>
+        3. Use ✦ to load it into the Cover Letter generator<br/>
+        4. Generate a custom letter with Claude AI
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottomnav">
+  <button class="bn-item active" id="bn-overview" onclick="goScreen('overview')">
+    <div class="bn-icon">📊</div>
+    <div class="bn-label">Overview</div>
+  </button>
+  <button class="bn-item" id="bn-jobs" onclick="goScreen('jobs')">
+    <div class="bn-icon">📋</div>
+    <div class="bn-label">Jobs</div>
+  </button>
+  <button class="bn-item" id="bn-cl" onclick="goScreen('cl')">
+    <div class="bn-icon">✦</div>
+    <div class="bn-label">Cover Letter</div>
+  </button>
+  <button class="bn-item" id="bn-settings" onclick="goScreen('settings')">
+    <div class="bn-icon">⚙</div>
+    <div class="bn-label">Settings</div>
+  </button>
+</nav>
+
+<!-- FAB — Add Job (visible on Jobs screen) -->
+<button id="fab" onclick="openModal()" style="
+  position:fixed; bottom:calc(var(--bot-h) + 16px); right:16px; z-index:150;
+  width:52px; height:52px; border-radius:50%;
+  background:var(--accent); border:none; color:#080c14;
+  font-size:24px; font-weight:700; cursor:pointer;
+  box-shadow:0 4px 16px rgba(56,189,248,.4);
+  display:none; align-items:center; justify-content:center;
+  transition:transform .15s;
+">+</button>
+
+<!-- STATUS SHEET -->
+<div class="sheet-overlay" id="status-sheet" onclick="closeStatusSheet(event)">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="sheet-job-name">Update Status</div>
+    <div class="sheet-options">
+      <button class="sheet-opt" onclick="setJobStatus('found')">
+        <div class="sheet-opt-dot" style="background:var(--muted)"></div> Found
+      </button>
+      <button class="sheet-opt" onclick="setJobStatus('applied')">
+        <div class="sheet-opt-dot" style="background:var(--green)"></div> Applied
+      </button>
+      <button class="sheet-opt" onclick="setJobStatus('interview')">
+        <div class="sheet-opt-dot" style="background:var(--accent2)"></div> Interview
+      </button>
+      <button class="sheet-opt" onclick="setJobStatus('rejected')">
+        <div class="sheet-opt-dot" style="background:var(--red)"></div> Rejected
+      </button>
+    </div>
+    <button class="sheet-cancel" onclick="closeStatusSheet()">Cancel</button>
+  </div>
+</div>
+
+<!-- ADD JOB MODAL -->
+<div class="modal-overlay" id="modal" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>Add Job</h3>
+    <div class="field"><label>Job Title *</label><input type="text" id="m-title" placeholder="IT Support Intern"/></div>
+    <div class="field"><label>Company *</label><input type="text" id="m-company" placeholder="Acme Corp"/></div>
+    <div class="field"><label>Platform</label>
+      <select id="m-platform">
+        <option value="LinkedIn">LinkedIn</option>
+        <option value="Indeed">Indeed</option>
+        <option value="Handshake">Handshake</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="field"><label>Location</label><input type="text" id="m-location" placeholder="Remote"/></div>
+    <div class="field"><label>Job URL</label><input type="url" id="m-url" placeholder="https://…"/></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveJob()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── STATE ──────────────────────────────────────────── */
+let jobs = JSON.parse(localStorage.getItem('jobagent_jobs') || '[]');
+let activeFilter = 'all';
+let searchQuery  = '';
+let activeSheet  = null;
+
+/* ── NAVIGATION ─────────────────────────────────────── */
+function goScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.bn-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('bn-' + name).classList.add('active');
+
+  const fab = document.getElementById('fab');
+  fab.style.display = name === 'jobs' ? 'flex' : 'none';
+
+  if (name === 'overview') renderOverview();
+  if (name === 'jobs')     renderJobs();
+  if (name === 'settings') renderSettings();
+}
+
+/* ── RENDER OVERVIEW ────────────────────────────────── */
+function renderOverview() {
+  document.getElementById('ov-total').textContent    = jobs.length;
+  document.getElementById('ov-applied').textContent  = jobs.filter(j=>j.status==='applied').length;
+  document.getElementById('ov-interview').textContent = jobs.filter(j=>j.status==='interview').length;
+  document.getElementById('ov-rejected').textContent  = jobs.filter(j=>j.status==='rejected').length;
+
+  const recent = [...jobs].reverse().slice(0, 5);
+  const el = document.getElementById('recent-list');
+  if (!recent.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">No jobs yet.<br/>Add one manually or run the agent on your laptop.</div></div>';
+    return;
+  }
+  el.innerHTML = recent.map(j => miniCard(j)).join('');
+}
+
+function miniCard(job) {
+  const pc = (job.platform||'other').toLowerCase();
+  return `
+    <div class="job-card" onclick="openStatusSheet('${job.id}')">
+      <div class="jc-top">
+        <div class="jc-title">${esc(job.title)}</div>
+        <span class="jc-platform ${pc}">${esc(job.platform)}</span>
+      </div>
+      <div class="jc-company">${esc(job.company)}</div>
+      <div class="jc-footer">
+        <span class="jc-status ${job.status}">${job.status}</span>
+        <div class="jc-actions">
+          <button class="jc-btn" onclick="event.stopPropagation();loadJobToCL('${job.id}')">✦ CL</button>
+          ${job.url ? `<button class="jc-btn" onclick="event.stopPropagation();window.open('${job.url}','_blank')">↗</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── RENDER JOBS ─────────────────────────────────────── */
+function renderJobs() {
+  let filtered = jobs;
+  if (activeFilter !== 'all') filtered = filtered.filter(j => j.status === activeFilter);
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    filtered = filtered.filter(j =>
+      j.title.toLowerCase().includes(q) ||
+      j.company.toLowerCase().includes(q) ||
+      (j.platform||'').toLowerCase().includes(q)
+    );
+  }
+  document.getElementById('jobs-count').textContent = filtered.length;
+  const el = document.getElementById('jobs-list');
+  if (!filtered.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-text">No jobs match.<br/>Try a different filter or add one.</div></div>';
+    return;
+  }
+  el.innerHTML = filtered.map(j => fullCard(j)).join('');
+}
+
+function fullCard(job) {
+  const pc = (job.platform||'other').toLowerCase();
+  return `
+    <div class="job-card">
+      <div class="jc-top">
+        <div class="jc-title">${esc(job.title)}</div>
+        <span class="jc-platform ${pc}">${esc(job.platform)}</span>
+      </div>
+      <div class="jc-company">${esc(job.company)}</div>
+      <div class="jc-meta">
+        <span>📍 ${esc(job.location||'Remote')}</span>
+        <span>🕐 ${formatDate(job.date_found)}</span>
+      </div>
+      <div class="jc-footer">
+        <span class="jc-status ${job.status}" onclick="openStatusSheet('${job.id}')" style="cursor:pointer">${job.status} ▾</span>
+        <div class="jc-actions">
+          <button class="jc-btn" onclick="loadJobToCL('${job.id}')">✦ CL</button>
+          ${job.url ? `<button class="jc-btn" onclick="window.open('${job.url}','_blank')">↗</button>` : ''}
+          <button class="jc-btn" onclick="deleteJob('${job.id}')" style="color:var(--red)">✕</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ── FILTERS ─────────────────────────────────────────── */
+function setFilter(f, el) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  renderJobs();
+}
+function onSearch(val) { searchQuery = val; renderJobs(); }
+
+/* ── STATUS SHEET ────────────────────────────────────── */
+function openStatusSheet(id) {
+  activeSheet = id;
+  const job = jobs.find(j => j.id === id);
+  if (!job) return;
+  document.getElementById('sheet-job-name').textContent = job.title + ' @ ' + job.company;
+  document.getElementById('status-sheet').classList.add('open');
+}
+function closeStatusSheet(e) {
+  if (e && e.target !== document.getElementById('status-sheet')) return;
+  document.getElementById('status-sheet').classList.remove('open');
+  activeSheet = null;
+}
+function setJobStatus(status) {
+  const job = jobs.find(j => j.id === activeSheet);
+  if (job) { job.status = status; saveJobs(); renderJobs(); renderOverview(); showToast('Moved to ' + status); }
+  document.getElementById('status-sheet').classList.remove('open');
+  activeSheet = null;
+}
+
+/* ── ADD JOB MODAL ───────────────────────────────────── */
+function openModal() { document.getElementById('modal').classList.add('open'); }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function closeModalOutside(e) { if (e.target.id === 'modal') closeModal(); }
+
+function saveJob() {
+  const title   = document.getElementById('m-title').value.trim();
+  const company = document.getElementById('m-company').value.trim();
+  if (!title || !company) { showToast('Title and company required'); return; }
+  jobs.unshift({
+    id: 'manual_' + Date.now(),
+    title, company,
+    platform: document.getElementById('m-platform').value,
+    location: document.getElementById('m-location').value || 'Remote',
+    url:      document.getElementById('m-url').value,
+    date_found: new Date().toISOString(),
+    status: 'found', keywords: [], description: ''
+  });
+  saveJobs(); renderJobs(); renderOverview(); closeModal(); showToast('Job added!');
+  ['m-title','m-company','m-location','m-url'].forEach(id => document.getElementById(id).value = '');
+}
+
+function deleteJob(id) {
+  jobs = jobs.filter(j => j.id !== id);
+  saveJobs(); renderJobs(); renderOverview(); showToast('Removed');
+}
+
+/* ── COVER LETTER ────────────────────────────────────── */
+function loadJobToCL(id) {
+  const job = jobs.find(j => j.id === id);
+  if (!job) return;
+  document.getElementById('cl-company').value     = job.company;
+  document.getElementById('cl-title').value       = job.title;
+  document.getElementById('cl-description').value = job.description || '';
+  document.getElementById('cl-output').innerHTML  = '<span class="cl-placeholder">Click Generate to create a cover letter for this job.</span>';
+  goScreen('cl');
+}
+
+async function generateCoverLetter() {
+  const company = document.getElementById('cl-company').value.trim();
+  const title   = document.getElementById('cl-title').value.trim();
+  const desc    = document.getElementById('cl-description').value.trim();
+  if (!company || !title) { showToast('Enter company and title first'); return; }
+
+  const output = document.getElementById('cl-output');
+  output.innerHTML = '<div class="cl-loading"><div class="spinner"></div><span>Claude is writing your cover letter…</span></div>';
+  document.getElementById('cl-btn').disabled = true;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: `You are customizing a cover letter for Jules Sejour, a graduating IT student applying for internships and entry-level roles in IT Support and Web Development.
+
+Jules's background:
+- B.T. Information Technology — SUNY Cobleskill (graduating May 2026), Honorable Mention Spring & Fall 2024
+- A.A. Liberal Arts — Rockland Community College (2023)
+- Skills: Python, HTML/CSS/JS, SQL, Linux, Git, Playwright, Flask, Anthropic API, Network Security, JIRA
+- AI tools: Claude (primary), ChatGPT
+- Projects: Job automation agent (Python/Playwright/Anthropic API), yamijpg photo journal, personal portfolio
+- Work: Dollar General (current), Stop & Shop, 7-Eleven, PDI NicePak, ShopRite
+- Contact: yamijpg@proton.me | (856) 353-0412
+
+Customize this base cover letter for the specific job. Replace [DATE] with today's date, [Company Name] and [Job Title] with real values. Leave [Hiring Manager's Name], [Hiring Manager's Job Title], [Company Address] as-is. Weave in 2-3 keywords from the job description naturally. Keep Jules's voice — direct, genuine, not robotic.
+
+Base letter:
+---
+[DATE]
+
+[Hiring Manager's Name]
+[Hiring Manager's Job Title]
+[Company Name]
+[Company Address]
+
+Dear [Hiring Manager's Name],
+
+Dear [Company Name] Team,
+
+I am writing to express my interest in the [Job Title] position at [Company Name]. I am graduating in May 2026 with a Bachelor of Technology in Information Technology from SUNY Cobleskill, and I am eager to bring my technical foundation, my enthusiasm for learning, and my strong work ethic to a team where I can grow and make a real contribution.
+
+Throughout my time at SUNY Cobleskill, I have built hands-on academic experience across a range of IT disciplines including Python programming, Linux operating systems, database concepts, network security, web development, and artificial intelligence. What excites me most right now is continuing to develop in areas like software development and modern IT workflows — I am the kind of person who genuinely enjoys picking up new skills and figuring out how things work.
+
+I have also developed strong practical experience working with AI tools — Claude is my primary tool for research, problem-solving, and development workflows. I built my personal portfolio website independently and created a full-stack job automation agent using Python, Playwright, and the Anthropic API. I believe fluency with AI tools is increasingly valuable in any technical role.
+
+Beyond my technical background, I bring several years of customer-facing work experience. These roles have sharpened my communication skills and reinforced my ability to work as part of a team. I am reliable, I show up ready to work, and I take pride in doing things the right way.
+
+I would love the opportunity to speak with you about how I can contribute to [Company Name]. Thank you for your time and consideration.
+
+Sincerely,
+Jules Sejour
+Email: yamijpg@proton.me
+Phone: (856) 353-0412
+---
+
+Return ONLY the final cover letter text, ready to copy-paste.`,
+        messages: [{ role: 'user', content: `Company: ${company}\nJob Title: ${title}\nJob Description: ${desc || '(none provided)'}` }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.[0]?.text || 'Error — check your API connection.';
+    output.innerHTML = `<button class="cl-copy-btn" onclick="copyCL()">Copy</button><div id="cl-text" style="white-space:pre-wrap;line-height:1.75">${text}</div>`;
+    showToast('Cover letter ready!');
+  } catch(err) {
+    output.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+  }
+  document.getElementById('cl-btn').disabled = false;
+}
+
+function copyCL() {
+  const text = document.getElementById('cl-text')?.textContent || '';
+  navigator.clipboard.writeText(text).then(() => showToast('Copied!'));
+}
+
+/* ── SAMPLE JOBS ─────────────────────────────────────── */
+function addSampleJobs() {
+  const samples = [
+    { id:'s1', title:'IT Support Intern', company:'Cloudflare', platform:'LinkedIn', location:'Remote', status:'found', date_found:new Date().toISOString(), keywords:[], description:'' },
+    { id:'s2', title:'Frontend Developer Intern', company:'Figma', platform:'Handshake', location:'Remote', status:'applied', date_found:new Date().toISOString(), keywords:[], description:'' },
+    { id:'s3', title:'Help Desk Technician', company:'IBM', platform:'Indeed', location:'New York, NY', status:'interview', date_found:new Date().toISOString(), keywords:[], description:'' },
+    { id:'s4', title:'AI/ML Intern', company:'Anthropic', platform:'LinkedIn', location:'Remote', status:'found', date_found:new Date().toISOString(), keywords:[], description:'' },
+  ];
+  const ids = new Set(jobs.map(j => j.id));
+  samples.forEach(s => { if (!ids.has(s.id)) jobs.push(s); });
+  saveJobs(); renderOverview(); renderJobs(); showToast('Sample jobs loaded!');
+}
+
+/* ── SETTINGS ────────────────────────────────────────── */
+function renderSettings() {
+  document.getElementById('storage-count').textContent = jobs.length + ' jobs';
+}
+function exportJobs() {
+  const blob = new Blob([JSON.stringify(jobs, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'jobs.json'; a.click();
+  showToast('Exported!');
+}
+function clearJobs() {
+  if (!confirm('Clear all jobs? This cannot be undone.')) return;
+  jobs = []; saveJobs(); renderOverview(); renderJobs(); showToast('Cleared');
+}
+
+/* ── UTILS ───────────────────────────────────────────── */
+function saveJobs() { localStorage.setItem('jobagent_jobs', JSON.stringify(jobs)); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+function formatDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+function esc(str) {
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── PWA SERVICE WORKER ──────────────────────────────── */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(console.error);
+}
+
+/* ── INIT ────────────────────────────────────────────── */
+renderOverview();
+</script>
+</body>
+</html>
